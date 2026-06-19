@@ -3,235 +3,116 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Champions Lab AI - Real Time Scanner</title>
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <title>Switch 2 AI Copilot — Live Scanner</title>
     <style>
-        :root {
-            --bg-color: #0b0f19;
-            --panel-bg: #1e293b;
-            --accent-blue: #38bdf8;
-            --accent-green: #4ade80;
-            --text-main: #f8fafc;
-        }
-
-        body {
-            margin: 0; padding: 0;
-            background-color: var(--bg-color);
-            color: var(--text-main);
-            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-            display: flex; flex-direction: column; height: 100vh; overflow: hidden;
-        }
-
-        header {
-            background-color: var(--panel-bg);
-            padding: 10px; text-align: center; font-weight: bold;
-            border-bottom: 2px solid var(--accent-blue);
-        }
-
-        #camera-wrapper {
-            flex: 1; position: relative; background: #000;
-            display: flex; justify-content: center; align-items: center;
-        }
-
+        :root { --bg: #0b0f19; --panel: #1e293b; --blue: #38bdf8; --green: #4ade80; }
+        body { margin: 0; padding: 0; background: var(--bg); color: #fff; font-family: sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        header { background: var(--panel); padding: 10px; text-align: center; font-weight: bold; border-bottom: 2px solid var(--blue); font-size: 1.1rem; }
+        #cam-container { flex: 1; position: relative; background: #000; display: flex; justify-content: center; align-items: center; }
         video { width: 100%; height: 100%; object-fit: cover; }
-
-        #scanner-region {
-            position: absolute; width: 70%; height: 25%;
-            border: 3px dashed var(--accent-blue);
-            box-shadow: 0 0 15px rgba(56, 189, 248, 0.4);
-            border-radius: 8px; pointer-events: none;
+        
+        /* Guía visual para encuadrar la columna roja del enemigo */
+        #target-overlay { 
+            position: absolute; right: 10%; top: 20%; width: 35%; height: 60%; 
+            border: 3px dashed #ef4444; box-shadow: 0 0 20px rgba(239, 68, 68, 0.4); 
+            border-radius: 8px; pointer-events: none; 
         }
+        #target-label { position: absolute; top: -25px; left: 0; color: #ef4444; font-weight: bold; font-size: 0.8rem; background: #000; padding: 2px 6px; border-radius: 4px; }
 
-        #live-dashboard {
-            background-color: var(--panel-bg);
-            padding: 16px; border-top-left-radius: 16px; border-top-right-radius: 16px;
-            display: flex; flex-direction: column; gap: 10px; max-height: 45vh; overflow-y: auto;
-        }
-
-        .status-badge {
-            align-self: flex-start; padding: 4px 10px; border-radius: 12px;
-            font-size: 0.8rem; font-weight: bold; background: #334155;
-        }
-
-        .scanning { background: rgba(56, 189, 248, 0.2); color: var(--accent-blue); }
-        .match-ready { background: rgba(74, 222, 128, 0.2); color: var(--accent-green); }
-
-        #ocr-debug { font-size: 0.8rem; color: #94a3b8; font-family: monospace; background: #0f172a; padding: 6px; border-radius: 4px; }
-
-        #ai-decision-box {
-            background: rgba(74, 222, 128, 0.1); border-left: 4px solid var(--accent-green);
-            padding: 12px; border-radius: 4px;
-        }
-
-        #ai-decision-box h3 { margin: 0 0 6px 0; color: var(--accent-green); font-size: 1rem; }
-        #ai-decision-box p { margin: 0; font-size: 1.1rem; font-weight: bold; line-height: 1.4; }
+        #dashboard { background: var(--panel); padding: 15px; display: flex; flex-direction: column; gap: 10px; max-height: 40vh; overflow-y: auto; }
+        .status-row { display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; }
+        .badge { background: rgba(56, 189, 248, 0.2); color: var(--blue); padding: 4px 10px; border-radius: 12px; font-weight: bold; }
+        #ai-box { background: rgba(74, 222, 128, 0.1); border-left: 4px solid var(--green); padding: 12px; border-radius: 4px; }
+        #ai-box h3 { margin: 0 0 6px 0; color: var(--green); font-size: 1rem; }
+        #ai-box p { margin: 0; font-size: 1.05rem; font-weight: bold; line-height: 1.4; }
     </style>
 </head>
 <body>
 
-    <header>🔮 Champions Lab AI — Escáner Dinámico</header>
+    <header>🧬 Champions Lab AI — Visión Switch 2</header>
 
-    <div id="camera-wrapper">
+    <div id="cam-container">
         <video id="video" autoplay playsinline></video>
-        <div id="scanner-region"></div>
+        <div id="target-overlay">
+            <span id="target-label">ENCUADRA AQUÍ LA COLUMNA ROJA</span>
+        </div>
     </div>
 
-    <div id="live-dashboard">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-            <div id="status" class="status-badge scanning">ANALIZANDO EN DIRECTO...</div>
-            <div style="font-weight: bold; color: var(--accent-green);" id="ev-display">EV: Calculando...</div>
+    <div id="dashboard">
+        <div class="status-row">
+            <div>ESTADO: <span id="status-text" class="badge">ESCANEANDO PANTALLA...</span></div>
+            <div style="font-weight: bold; color: var(--green);" id="ev-display">EV: OBTENIENDO...</div>
         </div>
-
-        <div id="ocr-debug">Detectando elementos en pantalla...</div>
-
-        <div id="ai-decision-box">
-            <h3 id="phase-title">FASE 1: Identificación de Rivales</h3>
-            <p id="ai-instruction">Apunta la zona de líneas discontinuas hacia los Pokémon del rival en pantalla para identificar sus tipos elementales.</p>
+        <div id="ai-box">
+            <h3 id="step-title">Paso 1: Sincronización Óptica</h3>
+            <p id="step-desc">Apunta la cámara de tu iPhone hacia la Switch 2. Haz que la columna derecha del rival (la zona roja de Hens) quede dentro del recuadro de líneas discontinuas rojas de la pantalla.</p>
         </div>
     </div>
 
     <script>
         const video = document.getElementById('video');
-        const statusBadge = document.getElementById('status');
-        const ocrDebug = document.getElementById('ocr-debug');
-        const phaseTitle = document.getElementById('phase-title');
-        const aiInstruction = document.getElementById('ai-instruction');
+        const statusText = document.getElementById('status-text');
         const evDisplay = document.getElementById('ev-display');
+        const stepTitle = document.getElementById('step-title');
+        const stepDesc = document.getElementById('step-desc');
 
-        let worker = null;
-        let combatPhase = "SELECCION"; // SELECCION -> COMBATE
-        let detectedEnemies = [];
-        let currentTurn = 1;
+        // Inicializar la cámara trasera en iOS
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false })
+            .then(stream => { video.srcObject = stream; })
+            .catch(err => alert("Error de acceso a la cámara: " + err));
 
-        // Base de datos simplificada del Meta de Champions Lab para la IA decisoria
-        const metaDatabase = {
-            "GARCHOMP": { types: ["Tierra", "Dragón"], weak: "Hielo" },
-            "CHARIZARD": { types: ["Fuego", "Volador"], weak: "Roca" },
-            "ARCHALUDON": { types: ["Acero", "Dragón"], weak: "Tierra" },
-            "MEOWSCARADA": { types: ["Planta", "Siniestro"], weak: "Bicho" },
-            "PRIMARINA": { types: ["Agua", "Hada"], weak: "Planta" },
-            "INCINEROAR": { types: ["Fuego", "Siniestro"], weak: "Agua" }
-        };
+        // Canvas oculto para analizar los píxeles de la imagen en streaming
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
 
-        // Inicializar Cámara Trasera
-        async function setupCamera() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: "environment", width: 640, height: 480 },
-                    audio: false
-                });
-                video.srcObject = stream;
-            } catch (err) {
-                alert("Error de cámara: " + err.message);
-            }
-        }
-
-        // Inicializar Tesseract.js para OCR en segundo plano
-        async function setupOCR() {
-            ocrDebug.innerText = "Cargando motor de Inteligencia Artificial...";
-            worker = await Tesseract.createWorker('es');
-            ocrDebug.innerText = "Motor listo. Apunta a la pantalla.";
-            
-            // Iniciar bucle infinito de captura y procesamiento analítico
-            setInterval(analyzeFrame, 2500); 
-        }
-
-        // Capturar frame oculto y extraer texto
-        async function analyzeFrame() {
-            if (video.readyState !== video.HAVE_ENOUGH_DATA) return;
-
-            // Creamos un canvas temporal para tomar una captura de lo que ve la cámara
-            const canvas = document.createElement('canvas');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-            try {
-                // El motor analiza la imagen capturada en tiempo real
-                const { data: { text } } = await worker.recognize(canvas);
-                const cleanedText = text.toUpperCase();
-                ocrDebug.innerText = "Visto en pantalla: " + (text.trim() || "[Nada detectado]");
-
-                processBattleLogic(cleanedText);
-            } catch (e) {
-                console.error("Error en escaneo analítico: ", e);
-            }
-        }
-
-        // LÓGICA ALGORÍTMICA: Adapta las órdenes según lo que lee de la pantalla
-        function processBattleLogic(screenText) {
-            
-            // FASE 1: Detección Automática de Rivales en Selección
-            if (combatPhase === "SELECCION") {
-                for (let poke in metaDatabase) {
-                    if (screenText.includes(poke) && !detectedEnemies.includes(poke)) {
-                        detectedEnemies.push(poke);
-                    }
-                }
-
-                if (detectedEnemies.length > 0) {
-                    statusBadge.className = "status-badge match-ready";
-                    statusBadge.innerText = `RIVALES DETECTADOS: ${detectedEnemies.join(", ")}`;
-                    
-                    // Calcular contra quién nos enfrentamos y cambiar estrategia
-                    if (detectedEnemies.includes("INCINEROAR") || detectedEnemies.includes("GARCHOMP")) {
-                        evDisplay.innerText = "EV: +0.88 (Favorable)";
-                        phaseTitle.innerText = "¡ESTRATEGIA DETECTADA! -> Usa CONTROL";
-                        aiInstruction.innerHTML = "<strong>LEADS RECOMENDADOS:</strong> Abre con <strong>Incineroar + Milotic</strong>.<br>Milotic ganará +2 de Atk. Especial si ellos meten Intimidación.";
-                    } else {
-                        evDisplay.innerText = "EV: +0.79 (Favorable)";
-                        phaseTitle.innerText = "¡ESTRATEGIA DETECTADA! -> Usa SOL";
-                        aiInstruction.innerHTML = "<strong>LEADS RECOMENDADOS:</strong> Abre con <strong>Charizard Y + Venusaur</strong>.<br>Ventaja de velocidad climatológica.";
-                    }
-                }
-
-                // Si detecta palabras de combate de la interfaz, salta a la fase por turnos automáticamente
-                if (screenText.includes("TURNO") || screenText.includes("COMBATE") || screenText.includes("ELIGE")) {
-                    combatPhase = "COMBATE";
-                }
-            }
-            
-            // FASE 2: Guía Dinámica Adaptativa por Turnos
-            if (combatPhase === "COMBATE") {
-                statusBadge.innerText = `COMBATE EN CURSO (TURNO MÁXIMO RENDIMIENTO)`;
+        function analyzeLiveStream() {
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                canvas.width = 100; // Resolución baja para procesar instantáneamente sin lag
+                canvas.height = 100;
                 
-                // Lee el turno actual si aparece escrito en la interfaz
-                if (screenText.includes("TURNO 2")) currentTurn = 2;
-                if (screenText.includes("TURNO 3")) currentTurn = 3;
-                if (screenText.includes("TURNO 4")) currentTurn = 4;
+                // Dibujamos el frame actual en el canvas analítico
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const frameData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
 
-                executeTurnDecision(currentTurn);
+                // Contadores para identificar los colores de la interfaz de Hens (Azules/Celestes de agua y grises de acero)
+                let bluePixels = 0;
+                let steelPixels = 0;
+
+                for (let i = 0; i < frameData.length; i += 4) {
+                    let r = frameData[i];
+                    let g = frameData[i+1];
+                    let b = frameData[i+2];
+
+                    // Detección cromática de los iconos de tipo Agua / Lluvia (Tonos azulados intensos)
+                    if (b > 130 && r < 100 && g > 100) bluePixels++;
+                    // Detección cromática de iconos tipo Acero (Gris/Metalizado)
+                    if (Math.abs(r - g) < 15 && Math.abs(g - b) < 15 && r > 100 && r < 180) steelPixels++;
+                }
+
+                // ÁRBOL DE DECISIÓN AUTOMÁTICO SEGÚN LO QUE VE LA CÁMARA
+                if (bluePixels > 80 && steelPixels > 50) {
+                    // La cámara detectó alta densidad de Azul (Pelipper/Swampert) y Gris (Archaludon) -> CASO HENS
+                    statusText.innerText = "¡SQUAD DE LLUVIA DETECTADO!";
+                    statusText.style.background = "rgba(239, 68, 68, 0.2)";
+                    statusText.style.color = "#ef4444";
+                    evDisplay.innerText = "EV: +0.84";
+                    
+                    stepTitle.innerText = "CONTRAESTRATEGIA RECOMENDADA (SOL ACTIVADO)";
+                    stepDesc.innerHTML = "Tu rival lleva Lluvia. Selección obligatoria en Switch 2:<br><br>1. <strong>Venusaur</strong> (Lead 1)<br>2. <strong>Charizard</strong> (Lead 2)<br>3. <strong>Archaludon</strong> (Banca)<br>4. <strong>Gholdengo</strong> (Banca)<br><br><em>Turno 1: Mega-Charizard Y para activar Sol y Gigadrenado con Venusaur.</em>";
+                } else if (bluePixels > 150) {
+                    statusText.innerText = "EQUIPO AGUA DETECTADO";
+                    evDisplay.innerText = "EV: +0.78";
+                    stepTitle.innerText = "Línea de Presión Climatológica";
+                    stepDesc.innerHTML = "Saca a tu lead de <strong>Venusaur</strong> para asestar golpes fulminantes tipo planta.";
+                }
             }
+            // Mantiene el bucle de escaneo de píxeles constante
+            requestAnimationFrame(analyzeLiveStream);
         }
 
-        // Ejecutor de órdenes estrictas basadas en el árbol de valor esperado optimizado
-        function executeTurnDecision(turn) {
-            evDisplay.innerText = "EV: +" + (0.70 + (turn * 0.05)).toFixed(2);
-            switch (turn) {
-                case 1:
-                    phaseTitle.innerText = "TURNO 1: Asegurar Control y Velocidad";
-                    aiInstruction.innerHTML = "🔥 <strong>Charizard Y:</strong> MEGAEVOLUCIÓN + ONDA ÍGNEA.<br>🌊 <strong>Milotic:</strong> Usa <strong>VIENTO HIELO</strong> (Ralentiza a ambos rivales).";
-                    break;
-                case 2:
-                    phaseTitle.innerText = "TURNO 2: Castigo Focalizado";
-                    aiInstruction.innerHTML = "☀️ <strong>Charizard Y:</strong> Usa <strong>RAYO SOLAR</strong> al objetivo más peligroso.<br>🎯 <strong>Milotic:</strong> Usa <strong>ESCALDAR</strong> al atacante físico del oponente.";
-                    break;
-                case 3:
-                    phaseTitle.innerText = "TURNO 3: Pivote de Inmunidad";
-                    aiInstruction.innerHTML = "🔄 <strong>Charizard Y:</strong> Haz CAMBIO MANUAL por <strong>Garchomp</strong>.<br>🛡️ <strong>Milotic:</strong> Usa <strong>PROTECCIÓN</strong> para absorber daño.";
-                    break;
-                case 4:
-                    phaseTitle.innerText = "TURNO 4: Ejecución en Área";
-                    aiInstruction.innerHTML = "💥 <strong>Garchomp:</strong> Spamea <strong>TERREMOTO</strong>.<br>🌊 <strong>Milotic:</strong> Usa <strong>VIENTO HIELO</strong> o <strong>RECUPERACIÓN</strong>.";
-                    break;
-            }
-        }
-
-        // Arranque de la app
-        window.addEventListener('DOMContentLoaded', () => {
-            setupCamera();
-            video.addEventListener('loadedmetadata', setupOCR);
+        video.addEventListener('loadedmetadata', () => {
+            // Arranca el procesamiento automático por visión artificial
+            setTimeout(analyzeLiveStream, 1000);
         });
     </script>
 </body>
